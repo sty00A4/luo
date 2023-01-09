@@ -23,6 +23,8 @@ fn run() -> Result<(), Error> {
     let tokens = lexer::lex(input_path, text)?;
     println!("{tokens:?}");
     // parsing
+    let ast = parser::parse(input_path, tokens)?;
+    println!("{ast}");
     // type checking
     // compilation
     Ok(())
