@@ -1,13 +1,16 @@
 use std::fmt::Display;
-use crate::scanning::tokens::TokenType;
+use crate::scanning::{tokens::TokenType, nodes::NodeType};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Error {
     Error(String),
     InputFile(String),
-    UnexpectedEOF,
     IllegalChar(char), ExpectedChar(char), ExpectedHexDigit,
-    UnexpectedToken(TokenType), ExpectedToken(TokenType, Option<TokenType>)
+    
+    UnexpectedEOF,
+    UnexpectedToken(TokenType), ExpectedToken(TokenType, Option<TokenType>),
+
+    UnexpectedNode(NodeType)
 }
 impl Error {
     pub fn error(msg: &str) -> Self { Self::Error(msg.to_string()) }
@@ -24,6 +27,7 @@ impl Display for Error {
             Self::UnexpectedToken(token) => write!(f, "ERROR: unexpected {}", token.name()),
             Self::ExpectedToken(expected, got) => write!(f, "ERROR: expected {}{}", expected.name(),
             if let Some(got) = got { format!(", got {}", got.name()) } else { String::new() }),
+            Self::UnexpectedNode(node) => write!(f, "ERROR: unexpected {}", node.name()),
         }
     }
 }

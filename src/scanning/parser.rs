@@ -113,7 +113,7 @@ impl Parser {
                         }
                         Ok(Node::new(NodeType::AssignVars(vars, exprs), pos))
                     }
-                    _ => Ok(node)
+                    _ => Err(Error::UnexpectedNode(node.node().clone()))
                 }
             }
         }
