@@ -12,7 +12,7 @@ pub enum TokenType {
     EvalIn, EvalOut, TableIn, TableOut, IndexIn, IndexOut,
 //  :    ,    .      ..     ...
     Rep, Sep, Field, Range, Args,
-    And, Break, Do, Else, Elif, End, For, Fn, If, In, Local,
+    And, Break, Do, Else, Elseif, End, For, Fn, If, In, Local,
     Not, Or, Return, Then, While
 }
 impl TokenType {
@@ -25,10 +25,10 @@ impl TokenType {
             "break" => Self::Break,
             "do" => Self::Do,
             "else" => Self::Else,
-            "elif" => Self::Elif,
+            "elseif" => Self::Elseif,
             "end" => Self::End,
             "for" => Self::For,
-            "fn" => Self::Fn,
+            "function" => Self::Fn,
             "if" => Self::If,
             "in" => Self::In,
             "local" => Self::Local,
@@ -76,10 +76,10 @@ impl TokenType {
             Self::Break => "'break'",
             Self::Do => "'do'",
             Self::Else => "'else'",
-            Self::Elif => "'elif'",
+            Self::Elseif => "'elseif'",
             Self::End => "'end'",
             Self::For => "'for'",
-            Self::Fn => "'fn'",
+            Self::Fn => "'function'",
             Self::If => "'if'",
             Self::In => "'In'",
             Self::Local => "'local'",

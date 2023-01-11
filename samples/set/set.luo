@@ -1,15 +1,15 @@
 meta<T> Set
-    fn new(t: table<any, T>) -> Set
+    function new(t: table<any, T>) -> Set
         local set: table<T, boolean> = {}
         for _, v in ipairs(t) do
             set[v] = true
         end
         Set(set)
     end
-    fn from(t: table<T, boolean>) -> Set
+    function from(t: table<T, boolean>) -> Set
         Set(t)
     end
-    fn copy(set: Set) -> Set
+    function copy(set: Set) -> Set
         local new: Set = Set.new{}
         for k, v in pairs(set) do
             new[k] = v
@@ -17,22 +17,22 @@ meta<T> Set
         return new
     end
 end
-impl<T> Set<T>
-    fn __add(self, other) -> Set
+implement<T> Set<T>
+    function __add(self, other) -> Set
         local new: Set = Set.copy(self)
         for k, v in pairs(other) do
             if v then new[k] = v end
         end
         return new
     end
-    fn __sub(self, other) -> Set
+    function __sub(self, other) -> Set
         local new: Set = Set.copy(self)
         for k, v in pairs(other) do
             if v then new[k] = nil end
         end
         return new
     end
-    fn __eq(self, other) -> Set
+    function __eq(self, other) -> Set
         for k, v in pairs(other) do
             if self[k] ~= v then return false end
         end
