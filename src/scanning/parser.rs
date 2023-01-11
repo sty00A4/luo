@@ -93,6 +93,19 @@ impl Parser {
                 self.advance();
                 Ok(Node::new(NodeType::DoBlock(body), pos))
             }
+            TokenType::While => {
+                self.advance();
+                let cond = Box::new(self.expr()?);
+                self.expect_token(TokenType::Do)?; self.advance();
+                let Some(case_pos) = self.pos_clone() else {
+                    return Err(Error::UnexpectedEOF)
+                };
+                let body = self.body(vec![TokenType::End])?;
+                pos.extend(self.pos().unwrap());
+                let body = Box::new(Node::new(NodeType::Body(body), pos.clone()));
+                self.advance();
+                Ok(Node::new(NodeType::While { cond, body }, pos))
+            }
             TokenType::If => {
                 self.advance();
                 let (mut conds, mut cases) = (vec![], vec![]);
