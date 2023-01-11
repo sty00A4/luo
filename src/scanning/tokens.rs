@@ -81,7 +81,7 @@ impl TokenType {
             Self::For => "'for'",
             Self::Fn => "'function'",
             Self::If => "'if'",
-            Self::In => "'In'",
+            Self::In => "'in'",
             Self::Local => "'local'",
             Self::Not => "'not'",
             Self::Or => "'or'",

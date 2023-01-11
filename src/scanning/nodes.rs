@@ -8,16 +8,18 @@ pub fn join<T>(v: &Vec<T>, sep: &str) -> String where T: Display {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum NodeType {
-    Chunk(Vec<Node>),
+    Chunk(Vec<Node>), DoBlock(Vec<Node>),
     ID(String), Number(f64), Boolean(bool), String(String), Nil,
     Binary { left: Box<Node>, op: TokenType, right: Box<Node> }, Unary { op: TokenType, node: Box<Node> },
     Assign(Box<Node>, Box<Node>), AssignVars(Vec<Node>, Vec<Node>),
     LocalAssign(Box<Node>, Box<Node>), LocalAssignVars(Vec<Node>, Vec<Node>),
+    Return(Box<Node>), Break,
 }
 impl NodeType {
     pub fn name(&self) -> &str {
         match self {
             Self::Chunk(_) => "chunk",
+            Self::DoBlock(_) => "body",
             Self::ID(_) => "identifier",
             Self::Number(_) => "number",
             Self::Boolean(_) => "boolean",
@@ -29,13 +31,16 @@ impl NodeType {
             Self::AssignVars(_, _) => "assignments",
             Self::LocalAssign(_, _) => "local assignment",
             Self::LocalAssignVars(_, _) => "local assignments",
+            Self::Return(_) => "return statement",
+            Self::Break => "break statement",
         }
     }
 }
 impl Display for NodeType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Chunk(nodes) => write!(f, "{}", join(nodes, "\n")),
+            Self::Chunk(nodes) => write!(f, "\n{}\n", join(nodes, "\n")),
+            Self::DoBlock(nodes) => write!(f, "do {} end", join(nodes, " ")),
             Self::ID(v) => write!(f, "{v}"),
             Self::Number(v) => write!(f, "{v}"),
             Self::Boolean(v) => write!(f, "{v}"),
@@ -47,6 +52,8 @@ impl Display for NodeType {
             Self::AssignVars(ids, exprs) => write!(f, "{} = {}", join(ids, ", "), join(exprs, ", ")),
             Self::LocalAssign(id, expr) => write!(f, "local {id} = {expr}"),
             Self::LocalAssignVars(ids, exprs) => write!(f, "local {} = {}", join(ids, ", "), join(exprs, ", ")),
+            Self::Return(v) => write!(f, "return {v}"),
+            Self::Break => write!(f, "break"),
         }
     }
 }
@@ -58,6 +65,7 @@ pub struct Node {
 impl Node {
     pub fn new(node: NodeType, pos: Position) -> Self { Self { node, pos } }
     pub fn node(&self) -> &NodeType { &self.node }
+    pub fn pos(&self) -> &Position { &self.pos }
 }
 impl Debug for Node {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

@@ -35,6 +35,18 @@ impl Parser {
         while self.get().is_some() { nodes.push(self.stat()?); }
         Ok(Node::new(NodeType::Chunk(nodes), pos))
     }
+    pub fn body(&mut self, tokens: Vec<TokenType>) -> Result<Vec<Node>, Error> {
+        let Some(mut pos) = self.pos_clone() else {
+            return Err(Error::UnexpectedEOF)
+        };
+        let mut nodes = vec![];
+        while let Some(token) = self.get() {
+            if tokens.contains(&token) { break }
+            nodes.push(self.stat()?);
+        }
+        self.advance();
+        Ok(nodes)
+    }
     pub fn stat(&mut self) -> ParseResult {
         let Some(mut pos) = self.pos_clone() else {
             return Err(Error::UnexpectedEOF)
@@ -63,6 +75,20 @@ impl Parser {
                 self.advance();
                 let expr = Box::new(self.expr()?);
                 Ok(Node::new(NodeType::LocalAssign(Box::new(var), expr), pos))
+            }
+            TokenType::Return => {
+                self.advance();
+                let expr = Box::new(self.expr()?);
+                pos.extend(expr.pos());
+                Ok(Node::new(NodeType::Return(expr), pos))
+            }
+            TokenType::Break => {
+                self.advance();
+                Ok(Node::new(NodeType::Break, pos))
+            }
+            TokenType::Do => {
+                self.advance();
+                Ok(Node::new(NodeType::DoBlock(self.body(vec![TokenType::End])?), pos))
             }
             _ => {
                 let node = self.expr()?;
