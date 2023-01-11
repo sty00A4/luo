@@ -36,15 +36,12 @@ impl Parser {
         Ok(Node::new(NodeType::Chunk(nodes), pos))
     }
     pub fn body(&mut self, tokens: Vec<TokenType>) -> Result<Vec<Node>, Error> {
-        let Some(mut pos) = self.pos_clone() else {
-            return Err(Error::UnexpectedEOF)
-        };
         let mut nodes = vec![];
         while let Some(token) = self.get() {
             if tokens.contains(&token) { break }
             nodes.push(self.stat()?);
         }
-        self.advance();
+        if self.get() == None { return Err(Error::UnexpectedEOF) }
         Ok(nodes)
     }
     pub fn stat(&mut self) -> ParseResult {
@@ -65,15 +62,18 @@ impl Parser {
                     self.expect_token(TokenType::Assign)?;
                     self.advance();
                     let mut exprs = vec![self.expr()?];
+                    pos.extend(exprs.last().unwrap().pos());
                     while self.get() == Some(&TokenType::Sep) {
                         self.advance();
                         exprs.push(self.expr()?);
+                        pos.extend(exprs.last().unwrap().pos());
                     }
                     return Ok(Node::new(NodeType::LocalAssignVars(vars, exprs), pos))
                 }
                 self.expect_token(TokenType::Assign)?;
                 self.advance();
                 let expr = Box::new(self.expr()?);
+                pos.extend(expr.pos());
                 Ok(Node::new(NodeType::LocalAssign(Box::new(var), expr), pos))
             }
             TokenType::Return => {
@@ -88,7 +88,49 @@ impl Parser {
             }
             TokenType::Do => {
                 self.advance();
-                Ok(Node::new(NodeType::DoBlock(self.body(vec![TokenType::End])?), pos))
+                let body = self.body(vec![TokenType::End])?;
+                pos.extend(self.pos().unwrap());
+                self.advance();
+                Ok(Node::new(NodeType::DoBlock(body), pos))
+            }
+            TokenType::If => {
+                self.advance();
+                let (mut conds, mut cases) = (vec![], vec![]);
+                conds.push(self.expr()?);
+                self.expect_token(TokenType::Then)?; self.advance();
+                let Some(case_pos) = self.pos_clone() else {
+                    return Err(Error::UnexpectedEOF)
+                };
+                let case = self.body(vec![TokenType::End, TokenType::Elseif, TokenType::Else])?;
+                pos.extend(self.pos().unwrap());
+                cases.push(Node::new(NodeType::Body(case), case_pos));
+                while self.get() == Some(&TokenType::Elseif) {
+                    self.advance();
+                    conds.push(self.expr()?);
+                    self.expect_token(TokenType::Then)?; self.advance();
+                    let Some(mut case_pos) = self.pos_clone() else {
+                        return Err(Error::UnexpectedEOF)
+                    };
+                    let case = self.body(vec![TokenType::End, TokenType::Elseif, TokenType::Else])?;
+                    case_pos.extend(self.pos().unwrap());
+                    pos.extend(&case_pos);
+                    cases.push(Node::new(NodeType::Body(case), case_pos));
+                }
+                let mut else_case = None;
+                if self.get() == Some(&TokenType::Else) {
+                    self.advance();
+                    let Some(mut else_pos) = self.pos_clone() else {
+                        return Err(Error::UnexpectedEOF)
+                    };
+                    let body = self.body(vec![TokenType::End])?;
+                    else_pos.extend(self.pos().unwrap());
+                    pos.extend(&else_pos);
+                    self.advance();
+                    else_case = Some(Box::new(Node::new(NodeType::Body(body), else_pos)))
+                } else {
+                    self.advance();
+                }
+                Ok(Node::new(NodeType::If { conds, cases, else_case }, pos))
             }
             _ => {
                 let node = self.expr()?;
