@@ -289,16 +289,31 @@ impl Parser {
         let Some(mut pos) = self.pos_clone() else {
             return Err(Error::UnexpectedEOF)
         };
-        let mut left = self.call()?;
+        let mut left = self.len()?;
         while let Some(token) = self.get() {
             if ![TokenType::Pow].contains(token) { break }
             let op = self.get_clone().unwrap();
             self.advance();
-            let right = Box::new(self.call()?);
+            let right = Box::new(self.len()?);
             pos.extend(right.pos());
             left = Node::new(NodeType::Binary { left: Box::new(left.clone()), op, right }, pos.clone())
         }
         Ok(left)
+    }
+    pub fn len(&mut self) -> ParseResult {
+        let Some(mut pos) = self.pos_clone() else {
+            return Err(Error::UnexpectedEOF)
+        };
+        match self.get().unwrap() {
+            TokenType::Len => {
+                let op = self.get_clone().unwrap();
+                self.advance();
+                let node = Box::new(self.call()?);
+                pos.extend(node.pos());
+                Ok(Node::new(NodeType::Unary { op, node }, pos))
+            }
+            _ => self.call()
+        }
     }
     pub fn call(&mut self) -> ParseResult {
         let Some(mut pos) = self.pos_clone() else {

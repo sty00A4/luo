@@ -73,8 +73,8 @@ impl NodeType {
             Self::Binary { left, op, right } => format!("{} {} {}",
             left.format(indent, false), op.display(), right.format(indent, false)),
 
-            Self::Unary { op, node } => format!("{} {}",
-            op.name(), node.format(indent, false)),
+            Self::Unary { op, node } => format!("{}{}",
+            op.display(), node.format(indent, false)),
 
             Self::Field { left, right, expr } => if *expr {
                 format!("{}[{}]",
