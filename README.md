@@ -1,3 +1,3 @@
 # Luo
 
-A staticly typed programming language that compiles to lua.
+A staticly typed lua clone that compiles to lua.
