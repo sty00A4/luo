@@ -371,7 +371,7 @@ impl Parser {
                     self.advance();
                     let right = Box::new(self.atom()?);
                     pos.extend(right.pos());
-                    left = Node::new(NodeType::Field { left: Box::new(left.clone()), right }, pos.clone());
+                    left = Node::new(NodeType::Field { left: Box::new(left.clone()), right, expr: false }, pos.clone());
                 }
                 TokenType::IndexIn => {
                     self.advance();
@@ -379,7 +379,7 @@ impl Parser {
                     self.expect_token(TokenType::IndexOut)?;
                     pos.extend(self.pos().unwrap());
                     self.advance();
-                    left = Node::new(NodeType::Field { left: Box::new(left.clone()), right }, pos.clone());
+                    left = Node::new(NodeType::Field { left: Box::new(left.clone()), right, expr: true }, pos.clone());
                 }
                 _ => break
             }

@@ -12,7 +12,7 @@ pub enum NodeType {
     ID(String), Number(f64), Boolean(bool), String(String), Nil,
     Expr(Box<Node>),
     Binary { left: Box<Node>, op: TokenType, right: Box<Node> }, Unary { op: TokenType, node: Box<Node> },
-    Field { left: Box<Node>, right: Box<Node> }, Call { head: Box<Node>, args: Vec<Node> },
+    Field { left: Box<Node>, right: Box<Node>, expr: bool }, Call { head: Box<Node>, args: Vec<Node> },
     SelfCall { head: Box<Node>, field: String, args: Vec<Node> },
     Assign(Box<Node>, Box<Node>), AssignVars(Vec<Node>, Vec<Node>),
     LocalAssign(Box<Node>, Box<Node>), LocalAssignVars(Vec<Node>, Vec<Node>),
@@ -35,7 +35,7 @@ impl NodeType {
             Self::Expr(n) => n.node.name(),
             Self::Binary { left:_, op:_, right:_ } => "binary operation",
             Self::Unary { op:_, node:_ } => "unary operation",
-            Self::Field { left:_, right:_ } => "field operation",
+            Self::Field { left:_, right:_, expr:_ } => "field operation",
             Self::Call { head:_, args:_ } => "call",
             Self::SelfCall { head:_, field:_, args:_ } => "self call",
             Self::Assign(_, _) => "assignment",
@@ -58,6 +58,9 @@ impl NodeType {
 
             Self::DoBlock(nodes) => format!("{prefix}do\n{}\n{prefix}end",
             nodes.iter().map(|x| x.format(indent + 1, true)).collect::<Vec<String>>().join("\n")),
+            
+            Self::Body(nodes) => format!("\n{}",
+            nodes.iter().map(|x| x.format(indent + 1, true)).collect::<Vec<String>>().join("\n")),
 
             Self::ID(v) => format!("{v}"),
             Self::Number(v) => format!("{v}"),
@@ -73,11 +76,11 @@ impl NodeType {
             Self::Unary { op, node } => format!("{} {}",
             op.name(), node.format(indent, false)),
 
-            Self::Field { left, right } => if let NodeType::ID(id) = &right.node {
-                format!("{}.{id}", left.format(indent, false))
-            } else {
+            Self::Field { left, right, expr } => if *expr {
                 format!("{}[{}]",
                 left.format(indent, false), right.format(indent, false))
+            } else {
+                format!("{}.{}", left.format(indent, false), right.format(indent, false))
             }
 
             Self::Call { head, args } => if stat {
@@ -107,6 +110,25 @@ impl NodeType {
             v.format(indent, false)),
 
             Self::Break => format!("{prefix}break"),
+
+            Self::If { conds, cases, else_case } =>
+                format!("{prefix}if {}{}\n{prefix}end",
+                conds.iter().enumerate().map(|(i, cond)|
+                    format!("{} then{}", cond.format(indent, false), cases[i].format(indent, true))
+                ).collect::<Vec<String>>().join(format!("\n{prefix}elseif ").as_str()),
+                if let Some(else_case) = else_case { format!("\n{prefix}else {}", else_case.format(indent, true)) } else { "".to_string() }),
+
+            Self::While { cond, body } => format!("{prefix}while {} do {}\n{prefix}end",
+            cond.format(indent, false), body.format(indent, true)),
+            
+            Self::ForIn { vars, iter, body } => format!("{prefix}for {} in {} do {}\n{prefix}end",
+            join(vars, ", "), iter.format(indent, false), body.format(indent, true)),
+            
+            Self::For { var, start, end, step, body } => format!("{prefix}for {var} = {}, {}{} do {}\n{prefix}end",
+            start.format(indent, false), end.format(indent, false),
+            if let Some(step) = step { step.format(indent, false) } else { "".to_string() },
+            body.format(indent, true)),
+            
         }
     }
 }
@@ -124,7 +146,7 @@ impl Display for NodeType {
             Self::Expr(n) => write!(f, "{n}"),
             Self::Binary { left, op, right } => write!(f, "{left} {} {right}", op.display()),
             Self::Unary { op, node } => write!(f, "{} {node}", op.display()),
-            Self::Field { left, right } => write!(f, "{left} . {right}"),
+            Self::Field { left, right, expr:_ } => write!(f, "{left} . {right}"),
             Self::Call { head, args } => write!(f, "{head}({})", join(args, ", ")),
             Self::SelfCall { head, field, args } => write!(f, "{head}:{field}({})", join(args, ", ")),
             Self::Assign(id, expr) => write!(f, "{id} = {expr}"),
