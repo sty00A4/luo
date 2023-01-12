@@ -16,6 +16,11 @@ impl Parser {
     pub fn pos(&self) -> Option<&Position> { Some(self.tokens.get(self.idx)?.pos()) }
     pub fn pos_clone(&self) -> Option<Position> { Some(self.tokens.get(self.idx)?.pos().clone()) }
     pub fn advance(&mut self) { self.idx += 1; }
+    pub fn advance_some(&mut self) -> Result<(), Error> {
+        self.idx += 1;
+        if self.get() == None { return Err(Error::UnexpectedEOF) }
+        Ok(())
+    }
     pub fn reverse(&mut self) { if self.idx > 0 { self.idx -= 1; } }
     
     pub fn expect_token(&self, token: TokenType) -> Result<(), Error> {
@@ -145,17 +150,74 @@ impl Parser {
                 }
                 Ok(Node::new(NodeType::If { conds, cases, else_case }, pos))
             }
+            TokenType::For => {
+                self.advance_some()?;
+                let TokenType::ID(var) = self.get_clone().unwrap() else {
+                    return Err(Error::ExpectedToken(TokenType::ID("".to_string()), self.get_clone()))
+                };
+                self.advance_some()?;
+                if self.get() == Some(&TokenType::Sep) {
+                    let mut vars = vec![var];
+                    while self.get() == Some(&TokenType::Sep) {
+                        self.advance_some();
+                        let TokenType::ID(var) = self.get_clone().unwrap() else {
+                            return Err(Error::ExpectedToken(TokenType::ID("".to_string()), self.get_clone()))
+                        };
+                        self.advance_some();
+                        vars.push(var);
+                    }
+                    self.expect_token(TokenType::In)?; self.advance_some();
+                    let iter = Box::new(self.expr()?);
+                    self.expect_token(TokenType::Do)?; self.advance_some();
+                    let mut body_pos = self.pos_clone().unwrap();
+                    let body = self.body(vec![TokenType::End])?;
+                    body_pos.extend(self.pos().unwrap());
+                    pos.extend(&body_pos);
+                    self.advance();
+                    let body = Box::new(Node::new(NodeType::Body(body), body_pos));
+                    return Ok(Node::new(NodeType::ForIn { vars, iter, body }, pos))
+                }
+                if self.get() == Some(&TokenType::In) {
+                    self.advance_some();
+                    let iter = Box::new(self.expr()?);
+                    self.expect_token(TokenType::Do)?; self.advance_some();
+                    let mut body_pos = self.pos_clone().unwrap();
+                    let body = self.body(vec![TokenType::End])?;
+                    body_pos.extend(self.pos().unwrap());
+                    pos.extend(&body_pos);
+                    self.advance();
+                    let body = Box::new(Node::new(NodeType::Body(body), body_pos));
+                    return Ok(Node::new(NodeType::ForIn { vars: vec![var], iter, body }, pos))
+                }
+                self.expect_token(TokenType::Assign)?; self.advance_some();
+                let start = Box::new(self.expr()?);
+                self.expect_token(TokenType::Sep)?; self.advance_some();
+                let end = Box::new(self.expr()?);
+                let mut step = None;
+                if self.get() == Some(&TokenType::Sep) {
+                    self.advance_some();
+                    step = Some(Box::new(self.expr()?));
+                }
+                self.expect_token(TokenType::Do)?; self.advance_some();
+                let mut body_pos = self.pos_clone().unwrap();
+                let body = self.body(vec![TokenType::End])?;
+                body_pos.extend(self.pos().unwrap());
+                pos.extend(&body_pos);
+                self.advance();
+                let body = Box::new(Node::new(NodeType::Body(body), body_pos));
+                Ok(Node::new(NodeType::For { var, start, end, step, body }, pos))
+            }
             _ => {
                 let node = self.expr()?;
                 match node.node() {
                     // assigment
-                    NodeType::ID(_) if self.get() == Some(&TokenType::Assign) => {
+                    NodeType::ID(_) | NodeType::Field { left:_, right:_, expr:_ } if self.get() == Some(&TokenType::Assign) => {
                         self.advance();
                         let expr = Box::new(self.expr()?);
                         Ok(Node::new(NodeType::Assign(Box::new(node), expr), pos))
                     }
                     // multi assignment
-                    NodeType::ID(_) if self.get() == Some(&TokenType::Sep) => {
+                    NodeType::ID(_) | NodeType::Field { left:_, right:_, expr:_ } if self.get() == Some(&TokenType::Sep) => {
                         let mut vars = vec![node];
                         while self.get() == Some(&TokenType::Sep) {
                             self.advance();
@@ -177,6 +239,7 @@ impl Parser {
             }
         }
     }
+    
     pub fn expr(&mut self) -> ParseResult {
         self.or()
     }
@@ -315,6 +378,7 @@ impl Parser {
             _ => self.call()
         }
     }
+    
     pub fn call(&mut self) -> ParseResult {
         let Some(mut pos) = self.pos_clone() else {
             return Err(Error::UnexpectedEOF)

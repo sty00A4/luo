@@ -126,7 +126,7 @@ impl NodeType {
             
             Self::For { var, start, end, step, body } => format!("{prefix}for {var} = {}, {}{} do {}\n{prefix}end",
             start.format(indent, false), end.format(indent, false),
-            if let Some(step) = step { step.format(indent, false) } else { "".to_string() },
+            if let Some(step) = step { format!(", {}", step.format(indent, false)) } else { "".to_string() },
             body.format(indent, true)),
             
         }
