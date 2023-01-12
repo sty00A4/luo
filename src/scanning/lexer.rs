@@ -145,7 +145,7 @@ impl Lexer {
                             self.advance();
                             return Ok(Some(Token::new(TokenType::Args, pos)))
                         }
-                        return Ok(Some(Token::new(TokenType::Range, pos)))
+                        return Ok(Some(Token::new(TokenType::Concat, pos)))
                     }
                     Ok(Some(Token::new(TokenType::Field, pos)))
                 }

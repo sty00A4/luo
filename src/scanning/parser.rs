@@ -1,5 +1,4 @@
 use crate::error::Error;
-
 use super::{nodes::{Node, NodeType}, tokens::{Token, TokenType}, position::Position};
 
 pub type ParseResult = Result<Node, Error>;
@@ -23,6 +22,7 @@ impl Parser {
         if self.get() != Some(&token) {
             Err(Error::ExpectedToken(token, self.get_clone()))
         } else {
+            if self.get() == None { return Err(Error::UnexpectedEOF) }
             Ok(())
         }
     }
@@ -93,11 +93,13 @@ impl Parser {
             _ => {
                 let node = self.expr()?;
                 match node.node() {
+                    // assigment
                     NodeType::ID(_) if self.get() == Some(&TokenType::Assign) => {
                         self.advance();
                         let expr = Box::new(self.expr()?);
                         Ok(Node::new(NodeType::Assign(Box::new(node), expr), pos))
                     }
+                    // multi assignment
                     NodeType::ID(_) if self.get() == Some(&TokenType::Sep) => {
                         let mut vars = vec![node];
                         while self.get() == Some(&TokenType::Sep) {
@@ -113,19 +115,227 @@ impl Parser {
                         }
                         Ok(Node::new(NodeType::AssignVars(vars, exprs), pos))
                     }
+                    // let call pass through
+                    NodeType::Call { head:_, args:_ } => Ok(node),
                     _ => Err(Error::UnexpectedNode(node.node().clone()))
                 }
             }
         }
     }
     pub fn expr(&mut self) -> ParseResult {
-        self.atom()
+        self.or()
+    }
+    pub fn or(&mut self) -> ParseResult {
+        let Some(mut pos) = self.pos_clone() else {
+            return Err(Error::UnexpectedEOF)
+        };
+        let mut left = self.and()?;
+        while let Some(token) = self.get() {
+            if ![TokenType::Or].contains(token) { break }
+            let op = self.get_clone().unwrap();
+            self.advance();
+            let right = Box::new(self.and()?);
+            pos.extend(right.pos());
+            left = Node::new(NodeType::Binary { left: Box::new(left.clone()), op, right }, pos.clone())
+        }
+        Ok(left)
+    }
+    pub fn and(&mut self) -> ParseResult {
+        let Some(mut pos) = self.pos_clone() else {
+            return Err(Error::UnexpectedEOF)
+        };
+        let mut left = self.comp()?;
+        while let Some(token) = self.get() {
+            if ![TokenType::And].contains(token) { break }
+            let op = self.get_clone().unwrap();
+            self.advance();
+            let right = Box::new(self.comp()?);
+            pos.extend(right.pos());
+            left = Node::new(NodeType::Binary { left: Box::new(left.clone()), op, right }, pos.clone())
+        }
+        Ok(left)
+    }
+    pub fn comp(&mut self) -> ParseResult {
+        let Some(mut pos) = self.pos_clone() else {
+            return Err(Error::UnexpectedEOF)
+        };
+        let mut left = self.concat()?;
+        while let Some(token) = self.get() {
+            if ![TokenType::EQ, TokenType::NE, TokenType::LT, TokenType::GT, TokenType::LE, TokenType::GE].contains(token) { break }
+            let op = self.get_clone().unwrap();
+            self.advance();
+            let right = Box::new(self.concat()?);
+            pos.extend(right.pos());
+            left = Node::new(NodeType::Binary { left: Box::new(left.clone()), op, right }, pos.clone())
+        }
+        Ok(left)
+    }
+    pub fn concat(&mut self) -> ParseResult {
+        let Some(mut pos) = self.pos_clone() else {
+            return Err(Error::UnexpectedEOF)
+        };
+        let mut left = self.arith()?;
+        while let Some(token) = self.get() {
+            if ![TokenType::Concat].contains(token) { break }
+            let op = self.get_clone().unwrap();
+            self.advance();
+            let right = Box::new(self.arith()?);
+            pos.extend(right.pos());
+            left = Node::new(NodeType::Binary { left: Box::new(left.clone()), op, right }, pos.clone())
+        }
+        Ok(left)
+    }
+    pub fn arith(&mut self) -> ParseResult {
+        let Some(mut pos) = self.pos_clone() else {
+            return Err(Error::UnexpectedEOF)
+        };
+        let mut left = self.term()?;
+        while let Some(token) = self.get() {
+            if ![TokenType::Add, TokenType::Sub].contains(token) { break }
+            let op = self.get_clone().unwrap();
+            self.advance();
+            let right = Box::new(self.term()?);
+            pos.extend(right.pos());
+            left = Node::new(NodeType::Binary { left: Box::new(left.clone()), op, right }, pos.clone())
+        }
+        Ok(left)
+    }
+    pub fn term(&mut self) -> ParseResult {
+        let Some(mut pos) = self.pos_clone() else {
+            return Err(Error::UnexpectedEOF)
+        };
+        let mut left = self.factor()?;
+        while let Some(token) = self.get() {
+            if ![TokenType::Mul, TokenType::Div, TokenType::Mod].contains(token) { break }
+            let op = self.get_clone().unwrap();
+            self.advance();
+            let right = Box::new(self.factor()?);
+            pos.extend(right.pos());
+            left = Node::new(NodeType::Binary { left: Box::new(left.clone()), op, right }, pos.clone())
+        }
+        Ok(left)
+    }
+    pub fn factor(&mut self) -> ParseResult {
+        let Some(mut pos) = self.pos_clone() else {
+            return Err(Error::UnexpectedEOF)
+        };
+        match self.get().unwrap() {
+            TokenType::Not | TokenType::Sub => {
+                let op = self.get_clone().unwrap();
+                self.advance();
+                let node = Box::new(self.factor()?);
+                pos.extend(node.pos());
+                Ok(Node::new(NodeType::Unary { op, node }, pos))
+            }
+            _ => self.power()
+        }
+    }
+    pub fn power(&mut self) -> ParseResult {
+        let Some(mut pos) = self.pos_clone() else {
+            return Err(Error::UnexpectedEOF)
+        };
+        let mut left = self.call()?;
+        while let Some(token) = self.get() {
+            if ![TokenType::Pow].contains(token) { break }
+            let op = self.get_clone().unwrap();
+            self.advance();
+            let right = Box::new(self.call()?);
+            pos.extend(right.pos());
+            left = Node::new(NodeType::Binary { left: Box::new(left.clone()), op, right }, pos.clone())
+        }
+        Ok(left)
+    }
+    pub fn call(&mut self) -> ParseResult {
+        let Some(mut pos) = self.pos_clone() else {
+            return Err(Error::UnexpectedEOF)
+        };
+        let mut left = self.field()?;
+        while let Some(token) = self.get() {
+            match token {
+                // normal call
+                TokenType::EvalIn => {
+                    self.advance();
+                    if self.get() == Some(&TokenType::EvalOut) {
+                        pos.extend(self.pos().unwrap());
+                        self.advance();
+                        left = Node::new(NodeType::Call { head: Box::new(left.clone()), args: vec![] }, pos.clone());
+                        continue
+                    }
+                    let mut args = vec![self.expr()?];
+                    while self.get() == Some(&TokenType::Sep) {
+                        self.advance();
+                        args.push(self.expr()?);
+                    }
+                    self.expect_token(TokenType::EvalOut)?;
+                    pos.extend(self.pos().unwrap());
+                    self.advance();
+                    left = Node::new(NodeType::Call { head: Box::new(left.clone()), args }, pos.clone());
+                }
+                // normal call
+                TokenType::Rep => {
+                    self.advance();
+                    if self.get() == None { return Err(Error::UnexpectedEOF) }
+                    if let TokenType::ID(id) = self.get_clone().unwrap() {
+                        self.advance();
+                        if self.get() == Some(&TokenType::EvalOut) {
+                            pos.extend(self.pos().unwrap());
+                            self.advance();
+                            left = Node::new(NodeType::Call { head: Box::new(left.clone()), args: vec![] }, pos.clone());
+                            continue
+                        }
+                        let mut args = vec![self.expr()?];
+                        while self.get() == Some(&TokenType::Sep) {
+                            self.advance();
+                            args.push(self.expr()?);
+                        }
+                        self.expect_token(TokenType::EvalOut)?;
+                        pos.extend(self.pos().unwrap());
+                        self.advance();
+                        left = Node::new(NodeType::SelfCall { head: Box::new(left.clone()), field: id, args }, pos.clone());
+                    } else {
+                        return Err(Error::UnexpectedToken(self.get_clone().unwrap()))
+                    }
+                }
+                // single table or string arg call
+                TokenType::TableIn | TokenType::String(_) => {
+                    left = Node::new(NodeType::Call { head: Box::new(left.clone()), args: vec![self.atom()?] }, pos.clone());
+                }
+                _ => break
+            }
+        }
+        Ok(left)
+    }
+    pub fn field(&mut self) -> ParseResult {
+        let Some(mut pos) = self.pos_clone() else {
+            return Err(Error::UnexpectedEOF)
+        };
+        let mut left = self.atom()?;
+        while let Some(token) = self.get() {
+            match token {
+                TokenType::Field => {
+                    self.advance();
+                    let right = Box::new(self.atom()?);
+                    pos.extend(right.pos());
+                    left = Node::new(NodeType::Field { left: Box::new(left.clone()), right }, pos.clone());
+                }
+                TokenType::IndexIn => {
+                    self.advance();
+                    let right = Box::new(self.expr()?);
+                    self.expect_token(TokenType::IndexOut)?;
+                    pos.extend(self.pos().unwrap());
+                    self.advance();
+                    left = Node::new(NodeType::Field { left: Box::new(left.clone()), right }, pos.clone());
+                }
+                _ => break
+            }
+        }
+        Ok(left)
     }
     pub fn atom(&mut self) -> ParseResult {
         let Some(token) = self.get_clone() else {
             return Err(Error::UnexpectedEOF);
         };
-        let pos = self.pos_clone().unwrap();
+        let mut pos = self.pos_clone().unwrap();
         self.advance();
         match token {
             TokenType::ID(id) => Ok(Node::new(NodeType::ID(id), pos)),
@@ -134,9 +344,11 @@ impl Parser {
             TokenType::String(v) => Ok(Node::new(NodeType::String(v), pos)),
             TokenType::Nil => Ok(Node::new(NodeType::Nil, pos)),
             TokenType::EvalIn => {
-                let node = self.expr()?;
+                let node = Box::new(self.expr()?);
                 self.expect_token(TokenType::EvalOut)?;
-                Ok(node)
+                pos.extend(self.pos().unwrap());
+                self.advance();
+                Ok(Node::new(NodeType::Expr(node), pos))
             }
             _ => Err(Error::UnexpectedToken(token))
         }

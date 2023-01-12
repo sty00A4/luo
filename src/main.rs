@@ -24,7 +24,7 @@ fn run() -> Result<(), Error> {
     println!("{tokens:?}");
     // parsing
     let ast = parser::parse(input_path, tokens)?;
-    println!("{ast}");
+    println!("{}", ast.format(0, false));
     // type checking
     // compilation
     Ok(())
