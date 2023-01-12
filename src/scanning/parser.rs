@@ -58,6 +58,7 @@ impl Parser {
             TokenType::Local => {
                 self.advance();
                 let var = self.expr()?;
+                pos.extend(var.pos());
                 if self.get() == Some(&TokenType::Sep) {
                     let mut vars = vec![var];
                     while self.get() == Some(&TokenType::Sep) {
@@ -75,10 +76,13 @@ impl Parser {
                     }
                     return Ok(Node::new(NodeType::LocalAssignVars(vars, exprs), pos))
                 }
-                self.expect_token(TokenType::Assign)?;
-                self.advance();
-                let expr = Box::new(self.expr()?);
-                pos.extend(expr.pos());
+                let mut expr = None;
+                if self.get() == Some(&TokenType::Assign) {
+                    self.advance();
+                    let expr_ = Box::new(self.expr()?);
+                    expr = Some(expr_.clone());
+                    pos.extend(expr_.pos());
+                }
                 Ok(Node::new(NodeType::LocalAssign(Box::new(var), expr), pos))
             }
             TokenType::Return => {

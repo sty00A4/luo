@@ -15,7 +15,7 @@ pub enum NodeType {
     Field { left: Box<Node>, right: Box<Node>, expr: bool }, Call { head: Box<Node>, args: Vec<Node> },
     SelfCall { head: Box<Node>, field: String, args: Vec<Node> },
     Assign(Box<Node>, Box<Node>), AssignVars(Vec<Node>, Vec<Node>),
-    LocalAssign(Box<Node>, Box<Node>), LocalAssignVars(Vec<Node>, Vec<Node>),
+    LocalAssign(Box<Node>, Option<Box<Node>>), LocalAssignVars(Vec<Node>, Vec<Node>),
     Return(Box<Node>), Break,
     If { conds: Vec<Node>, cases: Vec<Node>, else_case: Option<Box<Node>> },
     While { cond: Box<Node>, body: Box<Node> },
@@ -100,8 +100,8 @@ impl NodeType {
             Self::AssignVars(ids, exprs) => format!("{prefix}{} = {}",
             ids.iter().map(|x| x.format(indent, false)).collect::<Vec<String>>().join(", "), exprs.iter().map(|x| x.format(indent, false)).collect::<Vec<String>>().join(", ")),
 
-            Self::LocalAssign(id, expr) => format!("{prefix}local {} = {}",
-            id.format(indent, false), expr.format(indent, false)),
+            Self::LocalAssign(id, expr) => format!("{prefix}local {}{}",
+            id.format(indent, false), if let Some(expr) = expr { format!(" = {}", expr.format(indent, false)) } else { "".to_string() }),
 
             Self::LocalAssignVars(ids, exprs) => format!("{prefix}local {} = {}",
             ids.iter().map(|x| x.format(indent, false)).collect::<Vec<String>>().join(", "), exprs.iter().map(|x| x.format(indent, false)).collect::<Vec<String>>().join(", ")),
@@ -151,7 +151,7 @@ impl Display for NodeType {
             Self::SelfCall { head, field, args } => write!(f, "{head}:{field}({})", join(args, ", ")),
             Self::Assign(id, expr) => write!(f, "{id} = {expr}"),
             Self::AssignVars(ids, exprs) => write!(f, "{} = {}", join(ids, ", "), join(exprs, ", ")),
-            Self::LocalAssign(id, expr) => write!(f, "local {id} = {expr}"),
+            Self::LocalAssign(id, expr) => write!(f, "local {id}{}", if let Some(expr) = expr { format!(" = {expr}") } else { "".to_string() }),
             Self::LocalAssignVars(ids, exprs) => write!(f, "local {} = {}", join(ids, ", "), join(exprs, ", ")),
             Self::Return(v) => write!(f, "return {v}"),
             Self::Break => write!(f, "break"),
