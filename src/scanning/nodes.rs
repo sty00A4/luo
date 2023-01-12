@@ -8,7 +8,7 @@ pub fn join<T>(v: &Vec<T>, sep: &str) -> String where T: Display {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum NodeType {
-    Chunk(Vec<Node>), DoBlock(Vec<Node>),
+    Chunk(Vec<Node>), DoBlock(Vec<Node>), Body(Vec<Node>),
     ID(String), Number(f64), Boolean(bool), String(String), Nil,
     Expr(Box<Node>),
     Binary { left: Box<Node>, op: TokenType, right: Box<Node> }, Unary { op: TokenType, node: Box<Node> },
@@ -17,12 +17,16 @@ pub enum NodeType {
     Assign(Box<Node>, Box<Node>), AssignVars(Vec<Node>, Vec<Node>),
     LocalAssign(Box<Node>, Box<Node>), LocalAssignVars(Vec<Node>, Vec<Node>),
     Return(Box<Node>), Break,
+    If { conds: Vec<Node>, cases: Vec<Node>, else_case: Option<Box<Node>> },
+    While { cond: Box<Node>, body: Box<Node> },
+    ForIn { vars: Vec<String>, iter: Box<Node>, body: Box<Node> }, For { var: String, start: Box<Node>, end: Box<Node>, step: Option<Box<Node>>, body: Box<Node> },
 }
 impl NodeType {
     pub fn name(&self) -> &str {
         match self {
             Self::Chunk(_) => "chunk",
-            Self::DoBlock(_) => "body",
+            Self::DoBlock(_) => "do block",
+            Self::Body(_) => "body",
             Self::ID(_) => "identifier",
             Self::Number(_) => "number",
             Self::Boolean(_) => "boolean",
@@ -40,6 +44,10 @@ impl NodeType {
             Self::LocalAssignVars(_, _) => "local assignments",
             Self::Return(_) => "return statement",
             Self::Break => "break statement",
+            Self::If { conds:_, cases:_, else_case:_ } => "if statement",
+            Self::While { cond:_, body:_ } => "while statement",
+            Self::ForIn { vars:_, iter:_, body:_ } => "for-in statement",
+            Self::For { var:_, start:_, end:_, step:_, body:_ } => "for statement",
         }
     }
     pub fn format(&self, indent: usize, stat: bool) -> String {
@@ -107,6 +115,7 @@ impl Display for NodeType {
         match self {
             Self::Chunk(nodes) => write!(f, "\n{}\n", join(nodes, "\n")),
             Self::DoBlock(nodes) => write!(f, "do {} end", join(nodes, " ")),
+            Self::Body(nodes) => write!(f, "{}", join(nodes, " ")),
             Self::ID(v) => write!(f, "{v}"),
             Self::Number(v) => write!(f, "{v}"),
             Self::Boolean(v) => write!(f, "{v}"),
@@ -124,6 +133,13 @@ impl Display for NodeType {
             Self::LocalAssignVars(ids, exprs) => write!(f, "local {} = {}", join(ids, ", "), join(exprs, ", ")),
             Self::Return(v) => write!(f, "return {v}"),
             Self::Break => write!(f, "break"),
+            Self::If { conds, cases, else_case } => write!(f, "if {}{} end",
+            conds.iter().enumerate().map(|(i, cond)|format!("{cond} then {}", cases[i])).collect::<Vec<String>>().join(" elseif "),
+            if let Some(else_case) = else_case { format!(" else {else_case}") } else { "".to_string() }),
+            Self::While { cond, body } => write!(f, "while {cond} do {body} end"),
+            Self::ForIn { vars, iter, body } => write!(f, "for {} in {iter} do {body} end", join(vars, ", ")),
+            Self::For { var, start, end, step, body } => write!(f, "for {var} = {start}, {end}{} do {body} end",
+            if let Some(step) = step { format!(", {step}") } else { "".to_string() }),
         }
     }
 }
